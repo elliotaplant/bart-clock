@@ -1,60 +1,72 @@
-# main.py - Main program logic
-import logging
-import logging.handlers
+import sys
 import os
-from datetime import datetime
+import logging
 import time
-from bart_api import get_next_trains
 from display import Display
+from bart_api import get_next_trains
+from PIL import Image,ImageDraw,ImageFont
 
-def setup_logging():
-    """Configure logging with monthly rotation."""
-    log_dir = "logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    log_file = os.path.join(log_dir, "bart_clock.log")
-    
-    # Set up monthly rotating file handler
-    handler = logging.handlers.TimedRotatingFileHandler(
-        log_file,
-        when='MIDNIGHT',
-        interval=30,  # Monthly rotation
-        backupCount=12  # Keep a year of logs
-    )
-    
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    handler.setFormatter(formatter)
-    
-    # Also log to console
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    
-    # Set up root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(handler)
-    root_logger.addHandler(console_handler)
+# libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
+# if os.path.exists(libdir):
+#     sys.path.append(libdir)
 
-def main():
-    try:
+from lib.TP_lib import epd2in13_V3
+from lib.TP_lib import gt1151
+
+logging.basicConfig(level=logging.DEBUG)
+
+try:
+    # Display init
+    epd = epd2in13_V3.EPD()
+    touch = gt1151.GT1151()
+    touch_dev = gt1151.GT_Development()
+    touch_old = gt1151.GT_Development()
+    
+    # Init touch and display
+    logging.info("Initializing...")
+    touch.GT_Init()
+    epd.init(0)
+    epd.Clear(0xFF)
+    
+    # Create initial image
+    image = Image.new('1', (epd.height, epd.width), 255)
+    draw = ImageDraw.Draw(image)
+    
+    # Draw initial text
+    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+    draw.text((10, 10), "Touch anywhere...", font=font, fill=0)
+    epd.display(epd.getbuffer(image))
+    
+    last_update = 0
+    last_x = 0
+    last_y = 0
+    
+    # Touch detection loop
+    while True:
         display = Display()
-        while True:
-            logging.info("Starting update cycle...")
-            trains = get_next_trains()
-            display.show_trains(trains)
-            logging.info("Update cycle complete, sleeping for 1 minute...")
-            time.sleep(60)  # Wait 1 minute before next update
-            
-    except KeyboardInterrupt:
-        logging.info("Program terminated by user")
-    except Exception as e:
-        logging.error(f"Unexpected error: {e}")
-        raise
+        touch_dev.Touch = 1
+        touch.GT_Scan(touch_dev, touch_old)
+        
+        current_time = time.time()
+        
+        # Only update if touch detected and at least 2 seconds since last update
+        if touch_dev.TouchpointFlag and current_time - last_update > 2:
+            # Only update if position has changed significantly
+            if abs(touch_dev.X[0] - last_x) > 5 or abs(touch_dev.Y[0] - last_y) > 5:
+                logging.info(f"Touch detected at: ({touch_dev.X[0], touch_dev.Y[0]})")
+                logging.info("Storing touch time, coords")
+                last_update = current_time
+                last_x = touch_dev.X[0]
+                last_y = touch_dev.Y[0]
+                logging.info("Fetching train data")
+                trains = get_next_trains()
+                logging.info("Displaying result")
+                display.show_trains(trains)
+                logging.info("Complete")
+        
+        time.sleep(1)
 
-if __name__ == "__main__":
-    setup_logging()
-    main()
-
+except KeyboardInterrupt:    
+    logging.info("ctrl + c:")
+    epd.sleep()
+    exit()

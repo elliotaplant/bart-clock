@@ -1,4 +1,0 @@
-spidev
-pillow  # Python Imaging Library
-numpy
-
