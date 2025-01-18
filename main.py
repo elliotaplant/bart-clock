@@ -6,10 +6,6 @@ from display import Display
 from bart_api import get_next_trains
 from PIL import Image,ImageDraw,ImageFont
 
-# libdir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'lib')
-# if os.path.exists(libdir):
-#     sys.path.append(libdir)
-
 from lib.TP_lib import epd2in13_V3
 from lib.TP_lib import gt1151
 
