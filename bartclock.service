@@ -1,0 +1,16 @@
+# /etc/systemd/system/bartclock.service
+[Unit]
+Description=BART Clock Display Service
+After=network.target
+
+[Service]
+Type=simple
+User=elliot
+Group=elliot
+WorkingDirectory=/home/elliot/code/bart-clock
+ExecStart=/home/elliot/code/bart-clock/run_with_protection.sh
+Restart=on-failure
+RestartSec=30s
+
+[Install]
+WantedBy=multi-user.target
